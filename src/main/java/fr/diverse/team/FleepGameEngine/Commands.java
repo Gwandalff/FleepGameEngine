@@ -8,18 +8,24 @@ import java.util.Set;
 import fr.diverse.team.FleepGameEngine.creator.DynamicGameLoading;
 import fr.diverse.team.FleepGameEngine.creator.Game;
 import fr.diverse.team.FleepGameEngine.creator.GameRequests;
+import fr.gjouneau.FleepBotAPI.requests.RequestUtils;
 
 public class Commands {
 
-	private static final String MAIN_TOKEN = "games";
+	private final String MAIN_TOKEN = "games";
 	
-	private static String[] args;
-	private static String convId;
-	private static String userId;
+	private String[] args;
+	private String convId;
+	private String userId;
+	private final FleepGames bot;
+	
+	public Commands(FleepGames bot) {
+		this.bot = bot;
+	}
 
-	public static void execute(String message, String convId, String userId) {
-		Commands.convId = convId;
-		Commands.userId = userId;
+	public void execute(String message, String convId, String userId) {
+		this.convId = convId;
+		this.userId = userId;
 		String[] parts = message.split(" ");
 		commands cmd = parse(parts);
 		System.out.println("Executing the command : "+cmd.name());
@@ -30,7 +36,7 @@ public class Commands {
 			printCommands();
 			break;
 		case UPDATE:
-			updategamesByName();
+			updateGames();
 			break;
 		case LIST:
 			listgamesByName();
@@ -54,7 +60,7 @@ public class Commands {
 		COMMANDS, UPDATE, LIST, PREPARE, JOIN, START, GAME_SPECIFIC, ERROR
 	}
 
-	private static commands parse(String[] parts) {
+	private commands parse(String[] parts) {
 		if (parts[0].equals(MAIN_TOKEN)) {
 			String cmd = parts[1];
 			args = Arrays.copyOfRange(parts, 2, parts.length);
@@ -80,7 +86,7 @@ public class Commands {
 		}
 	}
 	
-	private static void printCommands() {
+	private void printCommands() {
 		if(args.length == 0) {
 			String out = "The commands of the game manager are :\n";
 			out += "games commands [game]  : Print commands of the manager or the given game\n";
@@ -92,7 +98,7 @@ public class Commands {
 			GameRequests.sendMessage(convId, out);
 			return;
 		}
-		Game g = FleepGames.gamesByName().get(args[0]);
+		Game g = bot.gamesByName().get(args[0]);
 		if(g != null) {
 			String out = "The commands of "+args[0]+" are :\n";
 			out += g.genericHelp();
@@ -101,78 +107,78 @@ public class Commands {
 		}
 	}
 
-	private static void updategamesByName() {
-		FleepGames.gamesByName().clear();
-		FleepGames.gamesByToken().clear();
-		FleepGames.gamesByName().putAll(new DynamicGameLoading().discoverGames(FleepGames.gamesFolder()));
-		Set<String> names = FleepGames.gamesByName().keySet();
+	private void updateGames() {
+		bot.gamesByName().clear();
+		bot.gamesByToken().clear();
+		bot.gamesByName().putAll(new DynamicGameLoading().discoverGames(bot.gamesFolder()));
+		Set<String> names = bot.gamesByName().keySet();
 		for (String name : names) {
-			Game g = FleepGames.gamesByName().get(name);
-			FleepGames.gamesByToken().put(g.token(), g);
+			Game g = bot.gamesByName().get(name);
+			bot.gamesByToken().put(g.token(), g);
 		}
 	}
 
-	private static void prepareGame() {
-		Set<String> names = FleepGames.gamesByName().keySet();
+	private void prepareGame() {
+		Set<String> names = bot.gamesByName().keySet();
 		if (!names.contains(args[0])) {
-			FleepGames.requestUtils().sendMessage(convId, "This game doesn't exist (yet)");
+			RequestUtils.sendMessage(convId, "This game doesn't exist (yet)");
 			return;
 		}
-		if (FleepGames.rooms().containsKey(args[0])) {
-			FleepGames.requestUtils().sendMessage(convId,
+		if (bot.rooms().containsKey(args[0])) {
+			RequestUtils.sendMessage(convId,
 					"A room for this game is active and this bot can handle only one room per game (for now)");
 			return;
 		}
-		FleepGames.rooms().put(args[0], new ArrayList<String>());
+		bot.rooms().put(args[0], new ArrayList<String>());
 	}
 
-	private static void joinGame() {
-		if (FleepGames.rooms().containsKey(args[0])) {
-			List<String> players = FleepGames.rooms().get(args[0]);
+	private void joinGame() {
+		if (bot.rooms().containsKey(args[0])) {
+			List<String> players = bot.rooms().get(args[0]);
 			if (players == null) {
-				FleepGames.requestUtils().sendMessage(convId, "Sorry, but the game already started");
+				RequestUtils.sendMessage(convId, "Sorry, but the game already started");
 				return;
 			}
 			players.add(userId);
 			return;
 		}
-		FleepGames.requestUtils().sendMessage(convId, "Sorry, but you need to create a room before joining a game");
+		RequestUtils.sendMessage(convId, "Sorry, but you need to create a room before joining a game");
 	}
 
-	private static void startGame() {
-		if (FleepGames.rooms().containsKey(args[0])) {
-			List<String> players = FleepGames.rooms().get(args[0]);
+	private void startGame() {
+		if (bot.rooms().containsKey(args[0])) {
+			List<String> players = bot.rooms().get(args[0]);
 			if (players == null) {
-				FleepGames.requestUtils().sendMessage(convId, "Sorry, but the game already started");
+				RequestUtils.sendMessage(convId, "Sorry, but the game already started");
 				return;
 			}
-			FleepGames.rooms().put(args[0], null);
-			Game g = FleepGames.gamesByName().get(args[0]);
+			bot.rooms().put(args[0], null);
+			Game g = bot.gamesByName().get(args[0]);
 			g.start(players);
 			return;
 		}
-		FleepGames.requestUtils().sendMessage(convId, "Sorry, but you need to create a room before starting a game");
+		RequestUtils.sendMessage(convId, "Sorry, but you need to create a room before starting a game");
 	}
 
-	private static void listgamesByName() {
-		Set<String> names = FleepGames.gamesByName().keySet();
+	private void listgamesByName() {
+		Set<String> names = bot.gamesByName().keySet();
 		String out = "List of deployed games :";
 		for (String name : names) {
 			out += "\n" + name;
 		}
-		FleepGames.requestUtils().sendMessage(convId, out);
+		RequestUtils.sendMessage(convId, out);
 	}
 
-	private static void transfertToGame(String token, String cmd) {
+	private void transfertToGame(String token, String cmd) {
 		System.out.println("Searching for games with token : "+token);
-		Game game = FleepGames.gamesByToken().get(token);
+		Game game = bot.gamesByToken().get(token);
 		if(game == null) {
 			System.out.println("Game not found -> this may be a usual message");
 			return;
 		}
-		String gameName = FleepGames.findName(game);
+		String gameName = bot.findName(game);
 		System.out.println("We found the game : "+gameName);
-		if(!FleepGames.rooms().containsKey(gameName) || FleepGames.rooms().get(gameName) != null ) {
+		if(!bot.rooms().containsKey(gameName) || bot.rooms().get(gameName) != null ) {
 			System.out.println("The game is not started -> transfert abort");
 			return;
 		}
@@ -183,6 +189,6 @@ public class Commands {
 		} catch (Exception e) {
 			GameRequests.sendMessage(convId, "An error occured in the game : "+gameName);
 		}
-		if(isFinished) FleepGames.rooms().remove(gameName);
+		if(isFinished) bot.rooms().remove(gameName);
 	}
 }
